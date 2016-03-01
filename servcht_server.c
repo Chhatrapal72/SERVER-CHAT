@@ -1,6 +1,8 @@
 /**
  * @file       : server.c 
- * @brief      : Server performs the chat between the client
+ * @brief      : Server performs the chat among the client
+ * @author     : Chhatrapal Singh, Rajat Singh and Manav Chaudhary
+ * @copyright  : (c) Copyright VVDN Technologies Pvt Ltd 2016. All Rights Reserved.
  */
 
 
@@ -16,7 +18,8 @@
 #define REGISTRATION 1
 #define LOGOUT 2
 #define DUPLICATE 3
-
+#define PING 4
+#define ALREADYR 5
 
 /*
  * @structure   : Clients 
@@ -159,7 +162,7 @@ char* lout(CI **n,char a[15])
 
 int main()
 {
-	int sockfd, newsockfd, portno,i,check=0;
+	int sockfd, i, check = 0;
 	char client_ath='N',client_av='N',*lname,cregister='N',client_resend='N';
 	char extraip[15],extraname[15];
 	char namer[50],names[50];
@@ -184,17 +187,50 @@ int main()
 		fprintf(stdout,"Socket binded Successfully\n");
 	recv_addr.sin_family = AF_INET;
         recv_addr.sin_port = htons(PORT);
+	c_name=(Clients *)malloc(sizeof(Clients));
+
 	while(1)
 	{	
 		temp=clientinfo;
-		c_name=(Clients *)malloc(sizeof(Clients));
 		recvfrom(sockfd,c_name,sizeof(Clients),0,(struct sockaddr *)&send_addr,&sendsize);
+		strcpy(extraip,inet_ntoa(send_addr.sin_addr));
+		
+		/*check whether client is available*/
+		if(c_name->id==PING)
+		{
+			while(temp!=NULL)
+			{
+				if(strcasecmp(extraip,temp->ip)==0)
+				{
+					check=1;
+					strcpy(c_name->msg,"Hello ");
+					strcat(c_name->msg,temp->name);
+					c_name->id=ALREADYR;
+					break;
+				}
+				temp=temp->next;
+
+			}
+			if(check==1)
+				{
+					sendto(sockfd,c_name,sizeof(Clients),0,(struct sockaddr *)&send_addr,sendsize);
+					check=0;
+				}
+			else
+			{		
+				c_name->id=REGISTRATION;
+                                sendto(sockfd,c_name,sizeof(Clients),0,(struct sockaddr *)&send_addr,sendsize);
+				check=0;
+			}
+
+		}
+
 
 
 
 		/*ckeck whether client want to logout or not */
 
-		if(c_name->id==LOGOUT)
+		else if(c_name->id==LOGOUT)
 		{		
 			strcpy(extraip,inet_ntoa(send_addr.sin_addr));
 			lname=lout(&clientinfo,extraip);
@@ -221,13 +257,14 @@ int main()
 					strcat(lname," is logged out");
 					strcpy(c_name->msg,lname);
 					sendto(sockfd,c_name,sizeof(Clients),0,(struct sockaddr *)&recv_addr,recvsize);
+					check=0;
 				}
 			}
 		}
 
 
 
-		/*check whether client want to register or not*/		
+		/*For registration*/		
 
 		else if(c_name->id==REGISTRATION)
 		{
@@ -235,58 +272,34 @@ int main()
 			strcpy(extraname,c_name->name);
 
 			temp=clientinfo;
-
-			/*check whether user id is unique*/
+		/*check whether user id is unique*/
 			while(temp!=NULL)
                         {
                                 if((strcasecmp(extraname,temp->name)==0))
                                 {
                                         c_name->id=DUPLICATE;
-                                        strcpy(c_name->msg,"This name is already taken,try it with different username ");
+                                        strcpy(c_name->msg,"This name is already used  ");
                                         strcpy(c_name->name,"Server");
                                         break;
                                 }
                                 temp=temp->next;
-                        }
+			}
+
 
 			if(c_name->id==DUPLICATE)
 				sendto(sockfd,c_name,sizeof(Clients),0,(struct sockaddr *)&send_addr,sendsize);
 
 			else
-			{
-				/*check whether registering client is already registered or not*/
-				temp=clientinfo;
-				while(temp!=NULL)
-				{
-					if((strcasecmp(extraip,temp->ip)==0))
-					{
-						cregister='Y';
-						strcpy(c_name->name,temp->name);
-						strcpy(c_name->msg,"You are already registered as ");
-						strcat(c_name->msg,c_name->name);
-						strcpy(c_name->name,"Server");
-						break;
-					}
-					temp=temp->next;
-				}
-				if(cregister=='Y')
-				{
-					sendto(sockfd,c_name,sizeof(Clients),0,(struct sockaddr *)&send_addr,sendsize);
-					cregister='N';
-				}
-				/*Registering client*/
-				else
-				{	
-					strcpy(extraip,inet_ntoa(send_addr.sin_addr));
-					strcpy(extraname,c_name->name);
-					storeinfo(&clientinfo,extraname,extraip);
-					fprintf(stdout,"\nRegistered Clients\n");
-					fprintf(stdout,"\n\n%s::%s::%s",c_name->name,inet_ntoa(send_addr.sin_addr),c_name->msg);
-					fflush(stdout);
-					strcpy(c_name->name,"Server");
-					strcpy(c_name->msg,"You are successfully registered");
-					sendto(sockfd,c_name,sizeof(Clients),0,(struct sockaddr *)&send_addr,sendsize);	
-				}
+			{	
+				strcpy(extraip,inet_ntoa(send_addr.sin_addr));
+				strcpy(extraname,c_name->name);
+				storeinfo(&clientinfo,extraname,extraip);
+				fprintf(stdout,"\nRegistered Clients\n");
+				fprintf(stdout,"\n\n%s::%s::%s",c_name->name,inet_ntoa(send_addr.sin_addr),c_name->msg);		
+				fflush(stdout);
+				strcpy(c_name->name,"Server");
+				strcpy(c_name->msg,"You are successfully registered");
+				sendto(sockfd,c_name,sizeof(Clients),0,(struct sockaddr *)&send_addr,sendsize);	
 			}
 		}
 
@@ -306,6 +319,7 @@ int main()
 				}
 				temp=temp->next;
 			}
+
 			if(client_ath=='Y')
 			{
 				temp=clientinfo;
@@ -316,18 +330,23 @@ int main()
 					{	
 						client_av='Y';
                			                recv_addr.sin_addr.s_addr = inet_addr(temp->ip);
-						strcpy(c_name->name,names);
 						break;
                        			}
 					temp=temp->next;
 				}
+
+
 				/*check whether sending client is not sending yourself*/
 				if(strcasecmp(c_name->name,names)==0)
 					client_resend='Y';
+				 
 				if(client_av=='Y')
 				{
+	
+					strcpy(c_name->name,names);
 					sendto(sockfd,c_name,sizeof(Clients),0,(struct sockaddr *)&recv_addr,recvsize);
 					client_av='N';
+					//client_resend='N';
 				}
 				else
 				{
@@ -341,7 +360,7 @@ int main()
 					{
 						strcpy(c_name->msg,c_name->name);
 						strcpy(c_name->name,"Server");
-						strcat(c_name->msg," is not available");
+						strcat(c_name->msg," is not available.Type 'exit' to chat with another client");
 					}
 					sendto(sockfd,c_name,sizeof(Clients),0,(struct sockaddr *)&send_addr,sendsize);
 				}
