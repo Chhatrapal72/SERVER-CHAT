@@ -118,6 +118,8 @@ int main(int argc,char *argv[])
 		
 		recvfrom(sockfd,&msg,sizeof(msg),0,NULL,0);
 		
+		/* check for registration*/
+		
 		if(msg.identifier==ALREADYR)	
 		{	
 			fprintf(stdout,"\n%s\n",msg.msg);
